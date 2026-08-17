@@ -137,21 +137,10 @@ function getAircraftColor(plane: Aircraft) {
     return "#ff3b30";
   }
 
-  if (squawk === "7600") {
-    return "#ff9500";
-  }
-
-  if (squawk === "7500") {
-    return "#bf5af2";
-  }
-
-  if (squawk === "7000") {
-    return "#ffd60a";
-  }
-
-  if (squawk === "2000") {
-    return "#64d2ff";
-  }
+  if (squawk === "7600") return "#ff9500";
+  if (squawk === "7500") return "#bf5af2";
+  if (squawk === "7000") return "#ffd60a";
+  if (squawk === "2000") return "#64d2ff";
 
   return "#ffd60a";
 }
@@ -337,15 +326,42 @@ function App() {
   const [photoError, setPhotoError] =
     useState(false);
 
+  const [search, setSearch] =
+    useState("");
+
+  const [searchOpen, setSearchOpen] =
+    useState(false);
+
   useEffect(() => {
     renderLimitRef.current = renderLimit;
 
-    const map = mapRef.current;
-
-    if (map) {
-      map.triggerRepaint();
+    if (mapRef.current) {
+      mapRef.current.triggerRepaint();
     }
   }, [renderLimit]);
+
+  const searchResults = (() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
+      return [];
+    }
+
+    return aircraftRef.current
+      .filter((plane) => {
+        return (
+          plane.icao?.toLowerCase().includes(query) ||
+          plane.callsign?.toLowerCase().includes(query) ||
+          plane.registration
+            ?.toLowerCase()
+            .includes(query) ||
+          plane.aircraft_type
+            ?.toLowerCase()
+            .includes(query)
+        );
+      })
+      .slice(0, 10);
+  })();
 
   useEffect(() => {
     if (!mapContainer.current) {
@@ -354,7 +370,9 @@ function App() {
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
+
       center: [-1.5, 52.5],
+
       zoom: 6,
 
       style: {
@@ -394,50 +412,6 @@ function App() {
 
       map.stop();
     }
-
-    function followAircraft(plane: Aircraft) {
-      followingIcaoRef.current = plane.icao;
-
-      setSelectedAircraft(plane);
-
-      map.stop();
-
-      map.flyTo({
-        center: [plane.lon, plane.lat],
-        zoom: Math.max(map.getZoom(), 9),
-        duration: 900,
-        essential: true,
-      });
-    }
-
-    /*
-     * =====================================================
-     * JETPHOTOS
-     * =====================================================
-     *
-     * OLD:
-     *
-     * localhost:8000/api/photo/G-EZDH
-     *
-     * NEW:
-     *
-     * 127.0.0.1:8787/registration/G-EZDH
-     *
-     * The new API returns:
-     *
-     * {
-     *   found: true,
-     *   photos: [
-     *     {
-     *       imageUrl: "...",
-     *       thumbnailUrl: "...",
-     *       photographer: "..."
-     *     }
-     *   ]
-     * }
-     *
-     * =====================================================
-     */
 
     async function loadPhoto(plane: Aircraft) {
       setPhoto(null);
@@ -500,10 +474,6 @@ function App() {
           return;
         }
 
-        /*
-         * Convert the new API format into the
-         * format the existing UI expects.
-         */
         const photoInfo: PhotoInfo = {
           image_url:
             firstPhoto.imageUrl,
@@ -545,7 +515,26 @@ function App() {
     }
 
     function selectAircraft(plane: Aircraft) {
-      followAircraft(plane);
+      followingIcaoRef.current = plane.icao;
+
+      setSelectedAircraft(plane);
+
+      setSearchOpen(false);
+
+      map.stop();
+
+      map.flyTo({
+        center: [plane.lon, plane.lat],
+
+        zoom: Math.max(
+          map.getZoom(),
+          9
+        ),
+
+        duration: 900,
+
+        essential: true,
+      });
 
       loadPhoto(plane);
     }
@@ -556,35 +545,47 @@ function App() {
       const bounds = map.getBounds();
 
       const visible =
-        aircraftRef.current.filter((plane) => {
-          if (
-            !Number.isFinite(plane.lat) ||
-            !Number.isFinite(plane.lon)
-          ) {
-            return false;
+        aircraftRef.current.filter(
+          (plane) => {
+            if (
+              !Number.isFinite(
+                plane.lat
+              ) ||
+              !Number.isFinite(
+                plane.lon
+              )
+            ) {
+              return false;
+            }
+
+            return bounds.contains([
+              plane.lon,
+              plane.lat,
+            ]);
           }
+        );
 
-          return bounds.contains([
-            plane.lon,
-            plane.lat,
-          ]);
-        });
+      const limited =
+        visible.slice(
+          0,
+          renderLimitRef.current
+        );
 
-      const limited = visible.slice(
-        0,
-        renderLimitRef.current
+      setAircraftCount(
+        limited.length
       );
 
-      setAircraftCount(limited.length);
-
-      const visibleIds = new Set<string>();
+      const visibleIds =
+        new Set<string>();
 
       for (const plane of limited) {
         if (!plane.icao) {
           continue;
         }
 
-        visibleIds.add(plane.icao);
+        visibleIds.add(
+          plane.icao
+        );
 
         let marker =
           markersRef.current.get(
@@ -592,14 +593,20 @@ function App() {
           );
 
         const size =
-          getAircraftSize(plane);
+          getAircraftSize(
+            plane
+          );
 
         const color =
-          getAircraftColor(plane);
+          getAircraftColor(
+            plane
+          );
 
         if (!marker) {
           const element =
-            document.createElement("div");
+            document.createElement(
+              "div"
+            );
 
           element.style.width =
             `${size}px`;
@@ -629,19 +636,25 @@ function App() {
             `drop-shadow(0 0 4px ${color})`;
 
           element.innerHTML =
-            getAircraftIcon(plane);
+            getAircraftIcon(
+              plane
+            );
 
-          element.onclick = (event) => {
-            event.stopPropagation();
+          element.onclick =
+            (event) => {
+              event.stopPropagation();
 
-            selectAircraft(plane);
-          };
+              selectAircraft(
+                plane
+              );
+            };
 
           marker =
             new maplibregl.Marker({
               element,
 
-              rotationAlignment: "map",
+              rotationAlignment:
+                "map",
             })
               .setLngLat([
                 plane.lon,
@@ -675,16 +688,23 @@ function App() {
             `drop-shadow(0 0 4px ${color})`;
 
           element.innerHTML =
-            getAircraftIcon(plane);
+            getAircraftIcon(
+              plane
+            );
 
-          element.onclick = (event) => {
-            event.stopPropagation();
+          element.onclick =
+            (event) => {
+              event.stopPropagation();
 
-            selectAircraft(plane);
-          };
+              selectAircraft(
+                plane
+              );
+            };
         }
 
-        if (plane.heading !== null) {
+        if (
+          plane.heading !== null
+        ) {
           marker.setRotation(
             plane.heading
           );
@@ -695,9 +715,13 @@ function App() {
           followingIcaoRef.current ===
             plane.icao
         ) {
-          setSelectedAircraft(plane);
+          setSelectedAircraft(
+            plane
+          );
 
-          if (!map.isMoving()) {
+          if (
+            !map.isMoving()
+          ) {
             trackingCameraUpdateRef.current =
               true;
 
@@ -718,7 +742,11 @@ function App() {
         icao,
         marker,
       ] of markersRef.current) {
-        if (!visibleIds.has(icao)) {
+        if (
+          !visibleIds.has(
+            icao
+          )
+        ) {
           marker.remove();
 
           markersRef.current.delete(
@@ -756,11 +784,13 @@ function App() {
       );
     }
 
-    const socket = new WebSocket(
-      "ws://localhost:8000/ws"
-    );
+    const socket =
+      new WebSocket(
+        "ws://localhost:8000/ws"
+      );
 
-    socketRef.current = socket;
+    socketRef.current =
+      socket;
 
     socket.onopen = () => {
       console.log(
@@ -772,29 +802,38 @@ function App() {
       sendViewport();
     };
 
-    socket.onmessage = (event) => {
-      try {
-        const aircraft =
-          JSON.parse(
-            event.data
-          ) as Aircraft[];
+    socket.onmessage =
+      (event) => {
+        try {
+          const aircraft =
+            JSON.parse(
+              event.data
+            ) as Aircraft[];
 
-        aircraftRef.current =
-          aircraft;
+          aircraftRef.current =
+            aircraft;
 
-        lastUpdateRef.current =
-          Date.now();
+          lastUpdateRef.current =
+            Date.now();
 
-        setRadarDown(false);
+          setRadarDown(false);
 
-        updateVisibleAircraft(true);
-      } catch (error) {
-        console.error(
-          "Aircraft data error:",
-          error
-        );
-      }
-    };
+          updateVisibleAircraft(
+            true
+          );
+
+          setSearch((current) =>
+            current
+              ? current
+              : ""
+          );
+        } catch (error) {
+          console.error(
+            "Aircraft data error:",
+            error
+          );
+        }
+      };
 
     socket.onerror = () => {
       console.error(
@@ -812,38 +851,62 @@ function App() {
       setRadarDown(true);
     };
 
-    map.on("click", () => {
-      stopFollowing();
-    });
+    map.on(
+      "click",
+      () => {
+        stopFollowing();
 
-    map.on("load", () => {
-      console.log("MAP LOADED");
-
-      sendViewport();
-
-      updateVisibleAircraft(false);
-    });
-
-    map.on("moveend", () => {
-      if (trackingCameraUpdateRef.current) {
-        return;
+        setSearchOpen(false);
       }
+    );
 
-      sendViewport();
+    map.on(
+      "load",
+      () => {
+        console.log(
+          "MAP LOADED"
+        );
 
-      updateVisibleAircraft(false);
-    });
+        sendViewport();
+
+        updateVisibleAircraft(
+          false
+        );
+      }
+    );
+
+    map.on(
+      "moveend",
+      () => {
+        if (
+          trackingCameraUpdateRef.current
+        ) {
+          return;
+        }
+
+        sendViewport();
+
+        updateVisibleAircraft(
+          false
+        );
+      }
+    );
 
     const radarTimer =
-      window.setInterval(() => {
-        if (
-          Date.now() -
-            lastUpdateRef.current >
-          15000
-        ) {
-          setRadarDown(true);
-        }
-      }, 3000);
+      window.setInterval(
+        () => {
+          if (
+            Date.now() -
+              lastUpdateRef.current >
+            15000
+          ) {
+            setRadarDown(
+              true
+            );
+          }
+        },
+        3000
+      );
 
     return () => {
       window.clearInterval(
@@ -859,7 +922,8 @@ function App() {
         socket.close();
       }
 
-      for (const marker of markersRef.current.values()) {
+      for (const marker of
+        markersRef.current.values()) {
         marker.remove();
       }
 
@@ -868,7 +932,8 @@ function App() {
       followingIcaoRef.current =
         null;
 
-      mapRef.current = null;
+      mapRef.current =
+        null;
 
       map.remove();
     };
@@ -881,7 +946,9 @@ function App() {
     followingIcaoRef.current =
       null;
 
-    setSelectedAircraft(null);
+    setSelectedAircraft(
+      null
+    );
 
     setPhoto(null);
 
@@ -892,9 +959,133 @@ function App() {
     }
   }
 
+  function selectSearchResult(
+    plane: Aircraft
+  ) {
+    const map =
+      mapRef.current;
+
+    if (!map) {
+      return;
+    }
+
+    followingIcaoRef.current =
+      plane.icao;
+
+    setSelectedAircraft(
+      plane
+    );
+
+    setSearchOpen(false);
+
+    map.stop();
+
+    map.flyTo({
+      center: [
+        plane.lon,
+        plane.lat,
+      ],
+
+      zoom: Math.max(
+        map.getZoom(),
+        9
+      ),
+
+      duration: 900,
+
+      essential: true,
+    });
+
+    setPhoto(null);
+    setPhotoError(false);
+
+    if (!plane.registration) {
+      setPhotoLoading(false);
+      return;
+    }
+
+    const registration =
+      plane.registration
+        .trim()
+        .toUpperCase();
+
+    setPhotoLoading(true);
+
+    fetch(
+      `http://127.0.0.1:8787/registration/${encodeURIComponent(
+        registration
+      )}`
+    )
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(
+            `Photo API returned HTTP ${response.status}`
+          );
+        }
+
+        return response.json();
+      })
+      .then(
+        (data: JetPhotosResponse) => {
+          const firstPhoto =
+            data.photos?.[0];
+
+          if (
+            !firstPhoto ||
+            !firstPhoto.imageUrl
+          ) {
+            setPhotoError(
+              true
+            );
+
+            return;
+          }
+
+          setPhoto({
+            image_url:
+              firstPhoto.imageUrl,
+
+            photo_url:
+              firstPhoto.photoPageUrl ||
+              null,
+
+            registration:
+              firstPhoto.registration ||
+              registration,
+
+            aircraft_type:
+              firstPhoto.aircraftType ||
+              null,
+
+            photographer:
+              firstPhoto.photographer ||
+              null,
+          });
+
+          setPhotoError(
+            false
+          );
+        }
+      )
+      .catch((error) => {
+        console.error(
+          "Aircraft photo error:",
+          error
+        );
+
+        setPhotoError(
+          true
+        );
+      })
+      .finally(() => {
+        setPhotoLoading(
+          false
+        );
+      });
+  }
+
   return (
     <div className="app">
-
       <div
         ref={mapContainer}
         className="map"
@@ -914,9 +1105,7 @@ function App() {
       )}
 
       <div className="topbar">
-
         <div className="logo">
-
           <span className="logo-plane">
             ✈
           </span>
@@ -924,34 +1113,132 @@ function App() {
           <span>
             OpenRadar
           </span>
-
         </div>
 
-        <input
-          className="search"
-          placeholder="Search aircraft, callsign or registration..."
-        />
+        <div className="search-wrapper">
+          <div className="search-box">
+            <span className="search-icon">
+              ⌕
+            </span>
 
-        <div className="status">
+            <input
+              className="search"
+              value={search}
+              onChange={(event) => {
+                setSearch(
+                  event.target.value
+                );
 
-          <span
-            className={
-              radarDown
-                ? "dot offline"
-                : "dot"
-            }
-          />
+                setSearchOpen(
+                  true
+                );
+              }}
+              onFocus={() => {
+                if (search.trim()) {
+                  setSearchOpen(
+                    true
+                  );
+                }
+              }}
+              placeholder="Search aircraft, callsign or registration..."
+            />
 
-          {radarDown
-            ? "OFFLINE"
-            : "LIVE"}
+            {search && (
+              <button
+                className="search-clear"
+                onClick={() => {
+                  setSearch("");
+                  setSearchOpen(
+                    false
+                  );
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
 
+          {searchOpen &&
+            search.trim() && (
+              <div className="search-results">
+                {searchResults.length >
+                0 ? (
+                  searchResults.map(
+                    (plane) => (
+                      <button
+                        key={
+                          plane.icao
+                        }
+                        className="search-result"
+                        onClick={() =>
+                          selectSearchResult(
+                            plane
+                          )
+                        }
+                      >
+                        <div className="result-icon">
+                          ✈
+                        </div>
+
+                        <div className="result-main">
+                          <strong>
+                            {plane.callsign ||
+                              "UNKNOWN"}
+                          </strong>
+
+                          <span>
+                            {plane.registration ||
+                              plane.icao}
+                          </span>
+                        </div>
+
+                        <div className="result-type">
+                          {plane.aircraft_type ||
+                            "UNKNOWN"}
+                        </div>
+                      </button>
+                    )
+                  )
+                ) : (
+                  <div className="no-results">
+                    No aircraft found
+                  </div>
+                )}
+              </div>
+            )}
         </div>
 
+        <div className="top-actions">
+          <a
+            className="github-button"
+            href="https://github.com/QuestRootResearch/Open-Radar"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span className="github-icon">
+              ◉
+            </span>
+
+            GitHub
+          </a>
+
+          <div className="status">
+            <span
+              className={
+                radarDown
+                  ? "dot offline"
+                  : "dot"
+              }
+            />
+
+            {radarDown
+              ? "OFFLINE"
+              : "LIVE"}
+          </div>
+        </div>
       </div>
 
       <div className="render-control">
-
         <label>
           Aircraft
         </label>
@@ -989,9 +1276,7 @@ function App() {
           <option value={99999}>
             ALL
           </option>
-
         </select>
-
       </div>
 
       <div className="aircraft-count">
@@ -1000,7 +1285,6 @@ function App() {
 
       {selectedAircraft && (
         <div className="aircraft-panel">
-
           <button
             className="aircraft-close"
             onClick={closeAircraft}
@@ -1009,7 +1293,6 @@ function App() {
           </button>
 
           <div className="photo-box">
-
             {photoLoading && (
               <div className="photo-loading">
                 Searching JetPhotos...
@@ -1020,7 +1303,9 @@ function App() {
               photo?.image_url &&
               !photoError && (
                 <img
-                  src={photo.image_url}
+                  src={
+                    photo.image_url
+                  }
                   className="aircraft-photo"
                   alt={
                     selectedAircraft.registration ||
@@ -1032,7 +1317,9 @@ function App() {
                       photo.image_url
                     );
 
-                    setPhotoError(true);
+                    setPhotoError(
+                      true
+                    );
                   }}
                 />
               )}
@@ -1042,7 +1329,6 @@ function App() {
                 !photo.image_url ||
                 photoError) && (
                 <div className="photo-placeholder">
-
                   <div className="placeholder-icon">
                     ✈
                   </div>
@@ -1064,16 +1350,12 @@ function App() {
                       Search JetPhotos
                     </a>
                   )}
-
                 </div>
               )}
-
           </div>
 
           <div className="aircraft-header">
-
             <div>
-
               <div className="aircraft-callsign">
                 {selectedAircraft.callsign ||
                   "UNKNOWN"}
@@ -1083,20 +1365,17 @@ function App() {
                 {selectedAircraft.registration ||
                   "Registration unavailable"}
               </div>
-
             </div>
 
             <div className="aircraft-type">
               {selectedAircraft.aircraft_type ||
                 "UNKNOWN"}
             </div>
-
           </div>
 
           <div className="aircraft-divider" />
 
           <div className="aircraft-grid">
-
             <div>
               <span>
                 ALTITUDE
@@ -1192,7 +1471,6 @@ function App() {
                   "—"}
               </strong>
             </div>
-
           </div>
 
           {selectedAircraft.emergency &&
@@ -1210,10 +1488,8 @@ function App() {
               {photo.photographer}
             </div>
           )}
-
         </div>
       )}
-
     </div>
   );
 }
