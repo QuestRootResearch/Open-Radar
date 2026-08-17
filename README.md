@@ -56,7 +56,7 @@ OpenRadar/
 Clone the repository:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/OpenRadar.git
+git clone https://github.com/QuestRootResearch/Open-Radar.git
 cd OpenRadar
 ```
 
