@@ -6,6 +6,9 @@ It displays live aircraft information, including callsign, registration, aircraf
 
 The project also includes aircraft photography through a separate photos API.
 
+The api URL for radar is https://api.adsb.lol/v2/point/{lat}/{lon}/{radius} (:
+The start and stop scripts are in backend and install script in root dir. Please clone this Don't download directly (RUN INSTALL.BAT BEFORE STARTING OTHERWISE IT WILL NOT START)
+
 ## Features
 
 - Live aircraft tracking
